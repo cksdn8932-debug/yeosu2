@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>목포 → 여수, 납치 탈출</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
+  :root{
+    --night: #0a0d18;
+    --night2: #12162a;
+    --panel: #171c33;
+    --danger: #ff4d5e;
+    --danger-dim: #c23a48;
+    --amber: #ffb454;
+    --gold: #ffd166;
+    --rose: #ff9fb0;
+    --cream: #f5f1e6;
+    --muted: #8791ae;
+    --line: rgba(255,255,255,0.09);
+    --prog: 0; /* 0 to 1, driven by JS, shifts mood */
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: var(--night);
+    font-family:'Noto Sans KR', sans-serif;
+    color: var(--cream);
+    overscroll-behavior:none;
+    user-select:none;
+  }
+
+  #app{
+    min-height:100vh;
+    min-height:100dvh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    overflow:hidden;
+  }
+
+  /* ---- ambient headlight streaks, cools/warms with progress ---- */
+  .streaks{
+    position:fixed; inset:0; pointer-events:none; z-index:0; opacity:0.5;
+  }
+  .streaks span{
+    position:absolute; top:var(--y); left:-30%;
+    width:160%; height:2px;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+    animation: sweep var(--dur) linear infinite;
+    animation-delay:var(--delay);
+  }
+  @keyframes sweep{
+    0%{ transform:translateX(-20%) scaleX(0.4); opacity:0;}
+    10%{opacity:1;}
+    50%{ transform:translateX(40%) scaleX(1);}
+    90%{opacity:0;}
+    100%{ transform:translateX(120%) scaleX(0.4); opacity:0;}
+  }
+
+  .vignette{
+    position:fixed; inset:0; pointer-events:none; z-index:1;
+    background: radial-gradient(ellipse at 50% 30%, transparent 40%, rgba(0,0,0,0.55) 100%);
+  }
+
+  header.topbar{
+    position:relative; z-index:2;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 18px 20px 10px;
+  }
+  .brand{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px; letter-spacing:0.12em;
+    color: var(--muted);
+    text-transform:uppercase;
+  }
+  .timer{
+    font-family:'JetBrains Mono', monospace;
+    font-size:14px; color: var(--amber);
+    letter-spacing:0.05em;
+    display:flex; align-items:center; gap:6px;
+  }
+  .timer .dot{
+    width:7px; height:7px; border-radius:50%;
+    background: var(--danger);
+    animation: blink 1.1s ease-in-out infinite;
+  }
+  @keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  main{
+    position:relative; z-index:2;
+    flex:1;
+    display:flex; flex-direction:column;
+    padding: 4px 22px 28px;
+    max-width: 520px;
+    margin: 0 auto;
+    width:100%;
+  }
+
+  /* progress locks */
+  .locks{
+    display:flex; gap:8px; justify-content:center;
+    margin: 6px 0 22px;
+  }
+  .locks .lk{
+    width:26px; height:26px; border-radius:50%;
+    border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; color:var(--muted);
+    transition: all .4s ease;
+  }
+  .locks .lk.done{
+    background: linear-gradient(135deg, var(--gold), var(--rose));
+    border-color: transparent; color:#221208;
+    box-shadow: 0 0 14px rgba(255,209,102,0.45);
+  }
+  .locks .lk.active{
+    border-color: var(--danger);
+    color: var(--danger);
+    box-shadow: 0 0 10px rgba(255,77,94,0.35);
+  }
+
+  .scene{
+    background: linear-gradient(180deg, var(--panel), var(--night2));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 22px 20px;
+    margin-bottom:18px;
+    position:relative;
+    overflow:hidden;
+  }
+  .scene::before{
+    content:'';
+    position:absolute; top:0; left:0; right:0; height:3px;
+    background: linear-gradient(90deg, var(--danger), var(--amber), var(--gold));
+    opacity:0.85;
+  }
+  .scene-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px; letter-spacing:0.14em;
+    color: var(--danger);
+    text-transform:uppercase;
+    margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .scene-label::before{ content:'●'; font-size:8px; }
+  .scene-text{
+    font-family:'Black Han Sans', sans-serif;
+    font-size: 22px;
+    line-height:1.55;
+    letter-spacing:0.01em;
+    color: var(--cream);
+    white-space:pre-line;
+  }
+
+  .action-card{
+    background: rgba(255,180,84,0.08);
+    border:1px dashed rgba(255,180,84,0.4);
+    border-radius:14px;
+    padding:14px 16px;
+    margin-bottom:18px;
+    display:flex; gap:12px; align-items:flex-start;
+  }
+  .action-card .icon{ font-size:20px; line-height:1; margin-top:1px; }
+  .action-card .txt{ font-size:14px; line-height:1.5; color: var(--amber); }
+  .action-card .txt b{ color: var(--cream); }
+
+  .task{
+    font-size:15px; color: var(--muted); margin-bottom:14px; line-height:1.6;
+  }
+
+  /* code pad */
+  .code-display{
+    display:flex; gap:10px; justify-content:center; margin: 18px 0 20px;
+  }
+  .code-display .cell{
+    width:44px; height:54px; border-radius:10px;
+    background: var(--night);
+    border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono', monospace;
+    font-size:24px; color:var(--cream);
+    transition: border-color .2s;
+  }
+  .code-display .cell.filled{ border-color: var(--gold); }
+  .code-display.shake{ animation: shake .4s; }
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-8px);}
+    40%{transform:translateX(8px);}
+    60%{transform:translateX(-6px);}
+    80%{transform:translateX(6px);}
+  }
+
+  .pad{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px;
+    margin-bottom: 14px;
+  }
+  .pad button{
+    padding: 16px 0;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background: rgba(255,255,255,0.03);
+    color: var(--cream);
+    font-family:'JetBrains Mono', monospace;
+    font-size:19px;
+    cursor:pointer;
+  }
+  .pad button:active{ background: rgba(255,209,102,0.18); }
+  .pad button.wide{ grid-column: span 1; font-size:14px; color:var(--muted); }
+
+  /* text input */
+  .text-input-wrap{ margin: 14px 0 18px; }
+  .text-input-wrap input{
+    width:100%; padding:15px 16px;
+    border-radius:12px;
+    border:1.5px solid var(--line);
+    background: var(--night);
+    color:var(--cream);
+    font-size:16px;
+    outline:none;
+  }
+  .text-input-wrap input:focus{ border-color: var(--gold); }
+
+  .submit-btn{
+    width:100%; padding:15px;
+    border-radius:12px; border:none;
+    background: linear-gradient(90deg, var(--danger), var(--amber));
+    color:#1a0d08; font-weight:700; font-size:15px;
+    letter-spacing:0.02em;
+    cursor:pointer;
+  }
+  .submit-btn:active{ filter:brightness(0.92); }
+
+  .hint-toggle{
+    text-align:center; margin-top:12px;
+  }
+  .hint-toggle button{
+    background:none; border:none; color: var(--muted);
+    font-size:13px; text-decoration:underline; cursor:pointer;
+    font-family:inherit;
+  }
+  .hint-box{
+    margin-top:10px; padding:12px 14px; font-size:13px; line-height:1.6;
+    background: rgba(255,255,255,0.04); border-radius:10px; color:var(--cream);
+    display:none;
+  }
+  .hint-box.show{ display:block; }
+
+  .error-msg{
+    color: var(--danger); font-size:13px; text-align:center; margin-top:10px; min-height:16px;
+  }
+
+  /* intro / final screens */
+  .center-screen{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:18px; padding: 20px 8px;
+  }
+  .center-screen h1{
+    font-family:'Black Han Sans', sans-serif;
+    font-size:30px; line-height:1.4; margin:0; color:var(--cream);
+  }
+  .center-screen .sub{
+    font-size:15px; color: var(--muted); line-height:1.7; max-width:380px;
+  }
+  .safety{
+    font-size:12.5px; color: var(--amber); background:rgba(255,180,84,0.08);
+    border:1px solid rgba(255,180,84,0.3); border-radius:10px; padding:10px 14px;
+    max-width:380px; line-height:1.6;
+  }
+  .start-btn{
+    margin-top:6px; padding:16px 42px; border-radius:30px; border:none;
+    background: linear-gradient(90deg, var(--danger), var(--amber));
+    color:#1a0d08; font-size:16px; font-weight:700; cursor:pointer;
+    box-shadow: 0 8px 24px rgba(255,77,94,0.35);
+  }
+
+  .final-screen{
+    background: radial-gradient(circle at 50% 20%, rgba(255,209,102,0.25), transparent 60%);
+  }
+  .final-screen h1{
+    font-family:'Gowun Batang', serif; font-weight:700;
+    background: linear-gradient(90deg, var(--gold), var(--rose));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    font-size:34px;
+  }
+  .final-msg{
+    font-family:'Gowun Batang', serif;
+    font-size:17px; line-height:2; color: var(--cream);
+    max-width:380px; white-space:pre-line;
+  }
+  .heart{ font-size:38px; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
+
+  .unlock-flash{
+    position:fixed; inset:0; z-index:50; pointer-events:none;
+    background: var(--gold); opacity:0;
+  }
+  .unlock-flash.play{ animation: flash .5s ease-out; }
+  @keyframes flash{ 0%{opacity:0;} 15%{opacity:0.55;} 100%{opacity:0;} }
+</style>
+</head>
+<body>
+
+<div class="streaks" id="streaks"></div>
+<div class="vignette"></div>
+<div class="unlock-flash" id="flash"></div>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand">MOKPO → YEOSU</div>
+    <div class="timer"><span class="dot"></span><span id="timerText">00:00</span></div>
+  </header>
+  <main id="main"></main>
+</div>
+
+<script>
+/* =========================================================================
+   📝 커스터마이징 가이드 (여행 전 여기만 고치면 됩니다)
+   - COUPLE.startDate: 100일 계산 등에 참고용 (표시에는 안 씀, 필요시 활용)
+   - PUZZLES 배열의 각 항목에서 answer 와 텍스트들을 두 분만 아는 정보로 수정하세요.
+   - type: 'code'  → 숫자 키패드 (4자리 등, answer는 숫자 문자열)
+           'text'  → 텍스트 입력 (answer는 소문자로 비교, 공백 무시)
+   - physical: 실제 차 안에서 할 행동 지시문 (미리 그 자리에 쪽지/힌트를 숨겨두세요!)
+   - hint: 막혔을 때 볼 수 있는 힌트 (선택, 없으면 빈 문자열)
+   ========================================================================= */
+
+const PUZZLES = [
+  {
+    label: "SCENE 01",
+    story: "눈을 떠보니 낯선 차 안.\n룸미러에 쪽지 한 장이 걸려있다.",
+    task: "그때 진짜 시원했는데..",
+    physical: "조수석 햇빛가리개를 열어봐. 안에 다음 힌트가 있을지도 몰라.",
+    type: "code",
+    length: 4,
+    answer: "0603", // TODO: 처음 만난 날짜 MMDD 로 수정
+    hint: "동굴"
+  },
+  {
+    label: "SCENE 02",
+    story: "사진 뒷면에 낙서처럼 적힌 문장.",
+    task: "자기야 꼭 맞춰줘!!",
+    physical: "영어라니..많이 약한데  D......",
+    type: "text",
+    answer: "DARLING", // TODO: 실제 애칭으로 수정
+    hint: "차 안에서 가장 자주 듣는 그 말."
+  },
+  {
+    label: "SCENE 03",
+    story: "글러브박스 안, 또 다른 쪽지.",
+    task: "",
+    physical: "달마시안",
+    type: "code",
+    length: 3,
+    answer: "101",
+    hint: "오늘이 바로 그날이잖아."
+  },
+  {
+    label: "SCENE 04",
+    story: "안경집 아래에 나온 사진 한 장 뒷면.",
+    task: "노래 제목이 기억이 잘 안나.",
+    physical: "내가 최근에 많이 들었던 노래가 떠오르는 군.",
+    type: "text",
+    answer: "I'm Gonna Love You", // TODO: 실제 노래 제목이나 장소로 수정
+    hint: "공감 수록곡 중에 영어로 된 노래가 있던 것 같던데.."
+  },
+  {
+    label: "FINAL LOCK",
+    story: "마지막 잠금장치.\n이걸 풀면 차 문이 열린다.\n\n『 우리가 이 여행을 떠나는 오늘 』",
+    task: "오늘이 바로 그날이잖아.",
+    physical: "풀고난 뒤 베이지 가방을 열어봐.",
+    type: "code",
+    length: 4,
+    answer: "0911", // TODO: 여행 가는 날짜로 자동/수동 수정 가능
+    hint: "달력을 봐."
+  }
+];
+
+const FINAL_MESSAGE =
+`문이 열렸다.\n\n범인은 없었다.\n\n있는 건 오직 100일 동안\n쌓아온 우리 둘 뿐.\n\n오늘도, 앞으로도\n계속 함께 갇혀있고 싶어.\n\n— 여수 가는 길, 너와 나`;
+
+/* ========================================================================= */
+
+let idx = 0;
+let solved = 0;
+let codeBuf = "";
+let startTime = null;
+let timerHandle = null;
+
+function fmtTime(sec){
+  const m = String(Math.floor(sec/60)).padStart(2,'0');
+  const s = String(sec%60).padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+function startTimer(){
+  startTime = Date.now();
+  timerHandle = setInterval(()=>{
+    const sec = Math.floor((Date.now()-startTime)/1000);
+    document.getElementById('timerText').textContent = fmtTime(sec);
+  },1000);
+}
+
+function setMood(progressRatio){
+  const root = document.documentElement.style;
+  // interpolate accent from danger-red toward gold as progress increases
+  root.setProperty('--prog', progressRatio);
+}
+
+function renderStreaks(){
+  const wrap = document.getElementById('streaks');
+  wrap.innerHTML = '';
+  for(let i=0;i<5;i++){
+    const s = document.createElement('span');
+    s.style.setProperty('--y', (10 + i*18)+'%');
+    s.style.setProperty('--dur', (3.5 + i*0.7)+'s');
+    s.style.setProperty('--delay', (i*0.6)+'s');
+    wrap.appendChild(s);
+  }
+}
+renderStreaks();
+
+function renderIntro(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="center-screen">
+      <div style="font-size:44px;">🚗💨</div>
+      <h1>여수로 가는 길,<br>당신은 납치당했습니다.</h1>
+      <div class="sub">이 문을 열려면 다섯 개의 잠금을 풀어야 한다.<br>모든 정답은 이 차 안, 그리고 두 사람의 기억 속에 있다.</div>
+      <div class="safety">⚠ 안전 안내: 문제와 힌트 확인, 캐비닛·트렁크 등 조작은 <b>조수석 탑승자</b>가 진행해 주세요. 운전자는 안전운전에만 집중!</div>
+      <button class="start-btn" onclick="beginGame()">탈출 시작</button>
+    </div>
+  `;
+}
+
+function beginGame(){
+  startTimer();
+  renderPuzzle();
+}
+
+function renderLocks(){
+  let html = '<div class="locks">';
+  PUZZLES.forEach((_,i)=>{
+    let cls = '';
+    if(i < solved) cls='done';
+    else if(i===idx) cls='active';
+    html += `<div class="lk ${cls}">${i<solved?'✓':i+1}</div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderPuzzle(){
+  const p = PUZZLES[idx];
+  codeBuf = "";
+  setMood(idx / PUZZLES.length);
+  const main = document.getElementById('main');
+
+  let inputHtml = '';
+  if(p.type === 'code'){
+    inputHtml = `
+      <div class="code-display" id="codeDisplay">
+        ${Array.from({length:p.length}).map(()=>'<div class="cell"></div>').join('')}
+      </div>
+      <div class="pad">
+        ${[1,2,3,4,5,6,7,8,9].map(n=>`<button onclick="pressDigit('${n}')">${n}</button>`).join('')}
+        <button class="wide" onclick="clearCode()">지우기</button>
+        <button onclick="pressDigit('0')">0</button>
+        <button class="wide" onclick="submitCode()">확인</button>
+      </div>
+    `;
+  } else {
+    inputHtml = `
+      <div class="text-input-wrap">
+        <input type="text" id="textAns" placeholder="정답 입력..." autocomplete="off">
+      </div>
+      <button class="submit-btn" onclick="submitText()">확인</button>
+    `;
+  }
+
+  main.innerHTML = `
+    ${renderLocks()}
+    <div class="scene">
+      <div class="scene-label">${p.label}</div>
+      <div class="scene-text">${p.story}</div>
+    </div>
+    <div class="action-card">
+      <div class="icon">🔎</div>
+      <div class="txt"><b>지금 해야 할 행동:</b><br>${p.physical}</div>
+    </div>
+    <div class="task">${p.task}</div>
+    ${inputHtml}
+    <div class="error-msg" id="errMsg"></div>
+    <div class="hint-toggle">
+      <button onclick="toggleHint()">힌트가 필요해...</button>
+      <div class="hint-box" id="hintBox">${p.hint || '힌트가 없습니다. 서로에게 물어보세요.'}</div>
+    </div>
+  `;
+
+  if(p.type === 'text'){
+    const inp = document.getElementById('textAns');
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter') submitText(); });
+    setTimeout(()=>inp.focus(), 100);
+  }
+}
+
+function toggleHint(){
+  document.getElementById('hintBox').classList.toggle('show');
+}
+
+function pressDigit(d){
+  const p = PUZZLES[idx];
+  if(codeBuf.length >= p.length) return;
+  codeBuf += d;
+  updateCodeDisplay();
+  if(codeBuf.length === p.length){
+    setTimeout(submitCode, 150);
+  }
+}
+function clearCode(){
+  codeBuf = "";
+  updateCodeDisplay();
+}
+function updateCodeDisplay(){
+  const cells = document.querySelectorAll('#codeDisplay .cell');
+  cells.forEach((c,i)=>{
+    if(i < codeBuf.length){
+      c.textContent = codeBuf[i];
+      c.classList.add('filled');
+    } else {
+      c.textContent = '';
+      c.classList.remove('filled');
+    }
+  });
+}
+
+function submitCode(){
+  const p = PUZZLES[idx];
+  if(codeBuf === p.answer){
+    onCorrect();
+  } else {
+    onWrong('#codeDisplay');
+  }
+}
+
+function normalize(s){
+  return s.trim().toLowerCase().replace(/\s+/g,'');
+}
+
+function submitText(){
+  const p = PUZZLES[idx];
+  const val = document.getElementById('textAns').value;
+  if(normalize(val) === normalize(p.answer)){
+    onCorrect();
+  } else {
+    onWrong('#textAns');
+  }
+}
+
+function onWrong(sel){
+  document.getElementById('errMsg').textContent = '정답이 아니에요. 다시 확인해봐요.';
+  const el = document.querySelector(sel);
+  if(el){
+    el.classList.add('shake');
+    setTimeout(()=>el.classList.remove('shake'), 400);
+  }
+  if(document.getElementById('codeDisplay')){
+    setTimeout(()=>{ codeBuf=''; updateCodeDisplay(); }, 350);
+  }
+}
+
+function onCorrect(){
+  solved++;
+  const flash = document.getElementById('flash');
+  flash.classList.add('play');
+  setTimeout(()=>flash.classList.remove('play'), 500);
+
+  if(idx < PUZZLES.length - 1){
+    idx++;
+    setTimeout(renderPuzzle, 550);
+  } else {
+    clearInterval(timerHandle);
+    setTimeout(renderFinal, 700);
+  }
+}
+
+function renderFinal(){
+  setMood(1);
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="center-screen final-screen">
+      <div class="heart">❤️</div>
+      <h1>탈출 성공</h1>
+      <div class="final-msg">${FINAL_MESSAGE}</div>
+      <div class="sub">클리어 시간: ${document.getElementById('timerText').textContent}</div>
+    </div>
+  `;
+}
+
+renderIntro();
+</script>
+</body>
+</html>
